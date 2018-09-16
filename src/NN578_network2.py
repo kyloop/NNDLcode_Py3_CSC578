@@ -1,10 +1,17 @@
 """
-8/2018 nt:
+MY OWN VERSION!!!!
+******************
+
+8/2018 
 NN578_network2.py
 ==============
 
 Modified from the NNDL book code "network2.py" to be 
 compatible with Python 3.
+
+Also from "network2.py", the function ("load(filename)") is
+added to this file, renamed as "load_network(filename)".
+This function loads a saved network encoded in a json file.
 
 """
 
@@ -142,7 +149,8 @@ class Network(object):
             monitor_evaluation_cost=False,
             monitor_evaluation_accuracy=False,
             monitor_training_cost=False,
-            monitor_training_accuracy=False):
+            monitor_training_accuracy=False,
+            no_convert=True):
         """Train the neural network using mini-batch stochastic gradient
         descent.  The ``training_data`` is a list of tuples ``(x, y)``
         representing the training inputs and the desired outputs.  The
@@ -170,30 +178,40 @@ class Network(object):
             random.shuffle(training_data)
             mini_batches = [
                 training_data[k:k+mini_batch_size]
-                for k in range(0, n, mini_batch_size)]
+                for k in range(0, n, mini_batch_size)]#xrange(0, n, mini_batch_size)]
             for mini_batch in mini_batches:
                 self.update_mini_batch(
                     mini_batch, eta, lmbda, len(training_data))
             print ("Epoch %s training complete" % j)
             if monitor_training_cost:
-                cost = self.total_cost(training_data, lmbda)
+                cost = self.total_cost(training_data, lmbda) # nt: for cost, always NO convert (default) for training
                 training_cost.append(cost)
                 print ("Cost on training data: {}".format(cost))
             if monitor_training_accuracy:
-                accuracy = self.accuracy(training_data, convert=True)
+                accuracy = self.accuracy(training_data, convert=True) # nt: for accuracy, always _DO_ convert (argmax) for training
                 training_accuracy.append(accuracy)
                 print ("Accuracy on training data: {} / {}".format(
                     accuracy, n))
             if monitor_evaluation_cost:
-                cost = self.total_cost(evaluation_data, lmbda, convert=True)
+                ## 9/2018 nt: changed the last parameter convert
+                if no_convert:
+                    cost = self.total_cost(evaluation_data, lmbda) # nt: if test/val data is already vectorized for y
+                else:
+                    cost = self.total_cost(evaluation_data, lmbda, convert=True)
                 evaluation_cost.append(cost)
                 print ("Cost on evaluation data: {}".format(cost))
             if monitor_evaluation_accuracy:
-                accuracy = self.accuracy(evaluation_data)
+                ## 9/2018 nt: changed the last parameter convert
+                if no_convert:
+                    accuracy = self.accuracy(evaluation_data, convert=True) #nt: _DO_ convert (argmax)
+                else:
+                    accuracy = self.accuracy(evaluation_data)
                 evaluation_accuracy.append(accuracy)
                 print ("Accuracy on evaluation data: {} / {}".format(
-                    self.accuracy(evaluation_data), n_data))
-            #print
+                    ## 9/2018 nt: This seems like a bug!
+                    #self.accuracy(evaluation_data), n_data))
+                    accuracy, n_data))
+            print ('')
         return evaluation_cost, evaluation_accuracy, \
             training_cost, training_accuracy
 
@@ -242,7 +260,7 @@ class Network(object):
         # second-last layer, and so on.  It's a renumbering of the
         # scheme in the book, used here to take advantage of the fact
         # that Python can use negative indices in lists.
-        for l in range(2, self.num_layers):
+        for l in range(2, self.num_layers):#xrange(2, self.num_layers):
             z = zs[-l]
             sp = sigmoid_prime(z)
             delta = np.dot(self.weights[-l+1].transpose(), delta) * sp
@@ -318,6 +336,22 @@ def load(filename):
     f.close()
     cost = getattr(sys.modules[__name__], data["cost"])
     net = Network(data["sizes"], cost=cost)
+    net.weights = [np.array(w) for w in data["weights"]]
+    net.biases = [np.array(b) for b in data["biases"]]
+    return net
+
+#### Loading a Network from a json file
+def load_network(filename):
+    """Load a neural network from the file ``filename``.  Returns an
+    instance of Network.
+
+    """
+    f = open(filename, "r")
+    data = json.load(f)
+    f.close()
+    #cost = getattr(sys.modules[__name__], data["cost"])
+    #net = Network(data["sizes"], cost=cost)
+    net = Network(data["sizes"])
     net.weights = [np.array(w) for w in data["weights"]]
     net.biases = [np.array(b) for b in data["biases"]]
     return net
