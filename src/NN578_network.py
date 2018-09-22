@@ -137,8 +137,14 @@ class Network(object):
         network outputs the correct result. Note that the neural
         network's output is assumed to be the index of whichever
         neuron in the final layer has the highest activation."""
-        test_results = [(np.argmax(self.feedforward(x)), y)
-                        for (x, y) in test_data]
+        # 9/17/2018 nt: ADDITION to accommodate (test_)data with non-scalar y
+        if hasattr(test_data[0][1], "__len__"): # to check for scalar type
+            test_results = [(np.argmax(self.feedforward(x)), np.argmax(y)) 
+                            for (x, y) in test_data]
+        else:
+            test_results = [(np.argmax(self.feedforward(x)), y)
+                            for (x, y) in test_data]
+
         return sum(int(x == y) for (x, y) in test_results)
 
     def cost_derivative(self, output_activations, y):
@@ -182,3 +188,14 @@ def load_network(filename):
     net.weights = [np.array(w) for w in data["weights"]]
     net.biases = [np.array(b) for b in data["biases"]]
     return net
+
+#### Miscellaneous functions
+def vectorize_target(n, target):
+    """Return an array of shape (n,1) with a 1.0 in the target position
+    and zeroes elsewhere.  The parameter target is assumed to be
+    an array of size 1, and the 0th item is the target position (1).
+
+    """
+    e = np.zeros((n, 1))
+    e[int(target[0])] = 1.0
+    return e
