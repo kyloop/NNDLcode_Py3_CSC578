@@ -1,8 +1,5 @@
 """
-MY OWN VERSION!!!!
-******************
-
-8/2018 
+10/2018 
 NN578_network2.py
 ==============
 
@@ -38,23 +35,21 @@ import sys
 import numpy as np
 
 
-#### Define the quadratic and cross-entropy cost functions
-
+#### 10/2018 nt:
+#### Definitions of the cost functions (as function classes)
 class QuadraticCost(object):
 
     @staticmethod
     def fn(a, y):
-        """Return the cost associated with an output ``a`` and desired output
-        ``y``.
-
+        """Return the cost associated with an output ``a`` and desired output ``y``.
         """
-        return 0.5*np.linalg.norm(a-y)**2
+        return 0.5*np.linalg.norm(y-a)**2
 
+    ## 10/2018 nt: addition
     @staticmethod
-    def delta(z, a, y):
-        """Return the error delta from the output layer."""
-        return (a-y) * sigmoid_prime(z)
-
+    def derivative(a, y):
+        """Return the first derivative of the function."""
+        return -(y-a)
 
 class CrossEntropyCost(object):
 
@@ -70,21 +65,29 @@ class CrossEntropyCost(object):
         """
         return np.sum(np.nan_to_num(-y*np.log(a)-(1-y)*np.log(1-a)))
 
+
+    
+#### 9/2018 nt:
+#### Definitions of the activation functions (as function classes)
+class Sigmoid(object):
+    
     @staticmethod
-    def delta(z, a, y):
-        """Return the error delta from the output layer.  Note that the
-        parameter ``z`` is not used by the method.  It is included in
-        the method's parameters in order to make the interface
-        consistent with the delta method for other cost classes.
+    def fn(z):
+        """The sigmoid function."""
+        return 1.0/(1.0+np.exp(-z))
 
-        """
-        return (a-y)
+    @classmethod
+    def derivative(cls,z):
+        """Derivative of the sigmoid function."""
+        return cls.fn(z)*(1-cls.fn(z))
 
-
+    
 #### Main Network class
 class Network(object):
 
-    def __init__(self, sizes, cost=CrossEntropyCost):
+    ## 10/2018 nt: additional keyword arguments for hyper-parameters
+    def __init__(self, sizes, cost=CrossEntropyCost, act_hidden=Sigmoid, \
+                 act_output=None, regularization=None, dropoutpercent=0.0):
         """The list ``sizes`` contains the number of neurons in the respective
         layers of the network.  For example, if the list was [2, 3, 1]
         then it would be a three-layer network, with the first layer
@@ -93,13 +96,32 @@ class Network(object):
         are initialized randomly, using
         ``self.default_weight_initializer`` (see docstring for that
         method).
-
         """
         self.num_layers = len(sizes)
         self.sizes = sizes
         self.default_weight_initializer()
         self.cost=cost
+        ## 10/2018 nt: addition
+        self.act_hidden = act_hidden
+        if act_output == None:
+            self.act_output = self.act_hidden
+        else:
+            self.act_output = act_output
+        self.regularization = regularization
+        self.dropoutpercent = dropoutpercent
 
+    ## 10/2018 nt: convenience function for setting hyper-parameters
+    def set_parameters(self, cost=QuadraticCost, act_hidden=Sigmoid, \
+                       act_output=None, regularization=None, dropoutpercent=0.0):
+        self.cost=cost
+        self.act_hidden = act_hidden
+        if act_output == None:
+            self.act_output = self.act_hidden
+        else:
+            self.act_output = act_output
+        self.regularization = regularization
+        self.dropoutpercent = dropoutpercent
+        
     def default_weight_initializer(self):
         """Initialize each weight using a Gaussian distribution with mean 0
         and standard deviation 1 over the square root of the number of
@@ -140,9 +162,15 @@ class Network(object):
     def feedforward(self, a):
         """Return the output of the network if ``a`` is input."""
         for b, w in zip(self.biases, self.weights):
-            a = sigmoid(np.dot(w, a)+b)
+            ## 10/2018: THIS NEEDS CHANGE. The previous line (commented) 
+            ##  doesn'twork any more.  The new scheme is written which 
+            ##  utilizes function class.  But this works but is still 
+            ##  incorrect because you have to consider act_output as well.
+            #a = sigmoid(np.dot(w, a)+b)
+            a = (self.act_hidden).fn(np.dot(w, a)+b)
         return a
 
+    ## 9/2018 nt: additional parameter 'no_convert' to control the vectorization of the target.
     def SGD(self, training_data, epochs, mini_batch_size, eta,
             lmbda = 0.0,
             evaluation_data=None,
@@ -175,13 +203,14 @@ class Network(object):
         evaluation_cost, evaluation_accuracy = [], []
         training_cost, training_accuracy = [], []
         for j in range(epochs):#xrange(epochs):
-            random.shuffle(training_data)
+            #random.shuffle(training_data)
             mini_batches = [
                 training_data[k:k+mini_batch_size]
                 for k in range(0, n, mini_batch_size)]#xrange(0, n, mini_batch_size)]
             for mini_batch in mini_batches:
                 self.update_mini_batch(
                     mini_batch, eta, lmbda, len(training_data))
+                
             print ("Epoch %s training complete" % j)
             if monitor_training_cost:
                 cost = self.total_cost(training_data, lmbda) # nt: for cost, always NO convert (default) for training
@@ -214,7 +243,8 @@ class Network(object):
             print ('')
         return evaluation_cost, evaluation_accuracy, \
             training_cost, training_accuracy
-
+        
+    ## 10/2018: THIS NEEDS CHANGE to incorporate self.regularization. 
     def update_mini_batch(self, mini_batch, eta, lmbda, n):
         """Update the network's weights and biases by applying gradient
         descent using backpropagation to a single mini batch.  The
@@ -248,10 +278,18 @@ class Network(object):
         for b, w in zip(self.biases, self.weights):
             z = np.dot(w, activation)+b
             zs.append(z)
-            activation = sigmoid(z)
+            ## 9/2018 nt: changed
+            #activation = sigmoid(z)
+            activation = (self.act_hidden).fn(z)
             activations.append(activation)
+
         # backward pass
-        delta = (self.cost).delta(zs[-1], activations[-1], y)
+        ## 9/2018 nt: Cost and activation functions are parameterized now.
+        ##            Call the activation function of the output layer with z.
+        #delta = (self.cost).delta(zs[-1], activations[-1], y)
+        a_prime = (self.act_output).derivative(zs[-1]) # 9/2018 nt: changed, da/dz
+        delta = (self.cost).derivative(activations[-1], y) * a_prime # 9/2018 nt: changed, dC/da * da/dz
+
         nabla_b[-1] = delta
         nabla_w[-1] = np.dot(delta, activations[-2].transpose())
         # Note that the variable l in the loop below is used a little
@@ -262,7 +300,9 @@ class Network(object):
         # that Python can use negative indices in lists.
         for l in range(2, self.num_layers):#xrange(2, self.num_layers):
             z = zs[-l]
-            sp = sigmoid_prime(z)
+            ## 9/2018 nt: Changed to call the activation function of the hidden layer with z.
+            #sp = sigmoid_prime(z)
+            sp = (self.act_hidden).derivative(z)
             delta = np.dot(self.weights[-l+1].transpose(), delta) * sp
             nabla_b[-l] = delta
             nabla_w[-l] = np.dot(delta, activations[-l-1].transpose())
@@ -298,7 +338,8 @@ class Network(object):
             results = [(np.argmax(self.feedforward(x)), y)
                         for (x, y) in data]
         return sum(int(x == y) for (x, y) in results)
-
+    
+    ## 10/2018: THIS NEEDS CHANGE to incorporate self.regularization. 
     def total_cost(self, data, lmbda, convert=False):
         """Return the total cost for the data set ``data``.  The flag
         ``convert`` should be set to False if the data set is the
