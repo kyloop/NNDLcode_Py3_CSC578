@@ -1,4 +1,6 @@
 """
+10/9 Updated
+
 10/2018 
 NN578_network2.py
 ==============
@@ -65,7 +67,13 @@ class CrossEntropyCost(object):
         """
         return np.sum(np.nan_to_num(-y*np.log(a)-(1-y)*np.log(1-a)))
 
-
+    @staticmethod
+    def derivative(a, y):
+        """Return the first derivative of the function."""
+        ###
+        ### YOU WRITE YOUR CODE HERE
+        ###
+        
     
 #### 9/2018 nt:
 #### Definitions of the activation functions (as function classes)
@@ -81,6 +89,23 @@ class Sigmoid(object):
         """Derivative of the sigmoid function."""
         return cls.fn(z)*(1-cls.fn(z))
 
+class Softmax(object):
+    @staticmethod
+    # Parameter z is an array of shape (len(z), 1).
+    def fn(z):
+        """The softmax of vector z."""
+        ###
+        ### YOU WRITE YOUR CODE HERE
+        ###
+
+    @classmethod
+    def derivative(cls,z):
+        """Derivative of the softmax.  
+        IMPORTANT: The derivative is an N*N matrix.
+        """
+        a = cls.fn(z) # obtain the softmax vector
+        return np.diagflat(a) - np.dot(a, a.T)
+    
     
 #### Main Network class
 class Network(object):
@@ -288,7 +313,12 @@ class Network(object):
         ##            Call the activation function of the output layer with z.
         #delta = (self.cost).delta(zs[-1], activations[-1], y)
         a_prime = (self.act_output).derivative(zs[-1]) # 9/2018 nt: changed, da/dz
-        delta = (self.cost).derivative(activations[-1], y) * a_prime # 9/2018 nt: changed, dC/da * da/dz
+        #delta = (self.cost).derivative(activations[-1], y) * a_prime # 9/2018 nt: changed, dC/da * da/dz
+        c_prime = (self.cost).derivative(activations[-1], y) #10/2018 nt: split a line to accommodate Softmax
+        if self.act_output == Softmax:
+            delta = np.dot(a_prime, c_prime)
+        else:
+            delta = c_prime * a_prime # 9/2018 nt: changed, dC/da * da/dz
 
         nabla_b[-1] = delta
         nabla_w[-1] = np.dot(delta, activations[-2].transpose())
